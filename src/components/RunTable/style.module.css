@@ -98,3 +98,53 @@
 .runDate {
   color: var(--color-run-date);
 }
+
+/* Chevron expand indicator */
+.chevronCell {
+  width: 20px;
+  text-align: center !important;
+  padding-right: 8px !important;
+}
+
+.chevron {
+  display: inline-block;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--color-run-table-thead);
+  opacity: 0.45;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  transform: rotate(0deg);
+  font-style: normal;
+  user-select: none;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+  opacity: 1;
+  color: var(--color-primary);
+}
+
+/* Row title — truncate long names */
+.rowTitle {
+  display: block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Detail expansion row */
+.detailRow {
+  background-color: transparent !important;
+  cursor: default;
+}
+
+.detailRow:hover {
+  background-color: transparent !important;
+}
+
+.detailCell {
+  padding: 0 8px 4px 8px !important;
+  border: none !important;
+  background-color: transparent !important;
+}
