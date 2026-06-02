@@ -56,6 +56,39 @@ const RunRow = ({
       <td>{runTime}</td>
       <td className={styles.runDate}>{run.start_date_local}</td>
       <td className={styles.chevronCell}>
+        <span
+          className={`${styles.chevron} ${isSelected ? styles.chevronOpen : ''}`}
+        >
+          ›
+        </span>
+      </td>
+    </tr>
+  );
+};
+
+export default RunRow;
+    }
+    setRunIndex(elementIndex);
+    locateActivity([run.run_id]);
+  };
+
+  return (
+    <tr
+      className={`${styles.runRow} ${isSelected ? styles.selected : ''}`}
+      key={run.start_date_local}
+      onClick={handleClick}
+      title="Click to expand activity details"
+    >
+      <td>
+        <span className={styles.rowTitle}>{titleForRun(run)}</span>
+      </td>
+      <td>{distance}</td>
+      {SHOW_ELEVATION_GAIN && <td>{(run.elevation_gain ?? 0.0).toFixed(1)}</td>}
+      {paceParts && <td>{paceParts}</td>}
+      <td>{heartRate && heartRate.toFixed(0)}</td>
+      <td>{runTime}</td>
+      <td className={styles.runDate}>{run.start_date_local}</td>
+      <td className={styles.chevronCell}>
         <span className={`${styles.chevron} ${isSelected ? styles.chevronOpen : ''}`}>
           ›
         </span>
