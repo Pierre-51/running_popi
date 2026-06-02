@@ -1,5 +1,10 @@
 import React, { useMemo } from 'react';
-import { Activity, pathForRun, formatPace, convertMovingTime2Sec } from '@/utils/utils';
+import {
+  Activity,
+  pathForRun,
+  formatPace,
+  convertMovingTime2Sec,
+} from '@/utils/utils';
 import { SHOW_ELEVATION_GAIN } from '@/utils/const';
 import styles from './RunDetailPanel.module.css';
 
@@ -11,14 +16,18 @@ const formatDuration = (seconds: number): string => {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+  if (h > 0)
+    return `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
   return `${m}m ${s.toString().padStart(2, '0')}s`;
 };
 
 const formatDate = (dateStr: string): string => {
   const d = new Date(dateStr.replace(' ', 'T'));
   return d.toLocaleDateString('en-GB', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
   });
 };
 
@@ -66,34 +75,77 @@ const RouteMiniMap: React.FC<{ run: Activity }> = ({ run }) => {
 
   const lngs = path.map((p) => p[0]);
   const lats = path.map((p) => p[1]);
-  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs),
+    maxLng = Math.max(...lngs);
+  const minLat = Math.min(...lats),
+    maxLat = Math.max(...lats);
   const pad = 0.0005;
   const bw = maxLng - minLng + pad * 2;
   const bh = maxLat - minLat + pad * 2;
-  const W = 320, H = 200;
+  const W = 320,
+    H = 200;
   const toX = (lng: number) => ((lng - minLng + pad) / bw) * W;
   const toY = (lat: number) => H - ((lat - minLat + pad) / bh) * H;
 
   const d = path
-    .map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p[0]).toFixed(1)},${toY(p[1]).toFixed(1)}`)
+    .map(
+      (p, i) =>
+        `${i === 0 ? 'M' : 'L'}${toX(p[0]).toFixed(1)},${toY(p[1]).toFixed(1)}`
+    )
     .join(' ');
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className={styles.routeSvg} xmlns="http://www.w3.org/2000/svg">
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className={styles.routeSvg}
+      xmlns="http://www.w3.org/2000/svg"
+    >
       <rect width={W} height={H} fill="var(--color-activity-card)" rx="8" />
-      <path d={d} fill="none" stroke="var(--color-primary)" strokeWidth="2.5"
-        strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
-      <circle cx={toX(path[0][0])} cy={toY(path[0][1])} r="5" fill="#22c55e" stroke="white" strokeWidth="1.5" />
-      <circle cx={toX(path[path.length-1][0])} cy={toY(path[path.length-1][1])} r="5" fill="#ef4444" stroke="white" strokeWidth="1.5" />
+      <path
+        d={d}
+        fill="none"
+        stroke="var(--color-primary)"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.9"
+      />
+      <circle
+        cx={toX(path[0][0])}
+        cy={toY(path[0][1])}
+        r="5"
+        fill="#22c55e"
+        stroke="white"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx={toX(path[path.length - 1][0])}
+        cy={toY(path[path.length - 1][1])}
+        r="5"
+        fill="#ef4444"
+        stroke="white"
+        strokeWidth="1.5"
+      />
     </svg>
   );
 };
 
 // ── Stat tile ─────────────────────────────────────────────────────────────────
-interface StatTileProps { label: string; value: string; sub?: string; highlight?: boolean; }
-const StatTile: React.FC<StatTileProps> = ({ label, value, sub, highlight }) => (
-  <div className={`${styles.statTile} ${highlight ? styles.statHighlight : ''}`}>
+interface StatTileProps {
+  label: string;
+  value: string;
+  sub?: string;
+  highlight?: boolean;
+}
+const StatTile: React.FC<StatTileProps> = ({
+  label,
+  value,
+  sub,
+  highlight,
+}) => (
+  <div
+    className={`${styles.statTile} ${highlight ? styles.statHighlight : ''}`}
+  >
     <span className={styles.statLabel}>{label}</span>
     <span className={styles.statValue}>{value}</span>
     {sub && <span className={styles.statSub}>{sub}</span>}
@@ -101,9 +153,11 @@ const StatTile: React.FC<StatTileProps> = ({ label, value, sub, highlight }) => 
 );
 
 // ── Pace split bars ────────────────────────────────────────────────────────────
-const PaceLaps: React.FC<{ run: Activity; movingSecs: number; distanceKm: number }> = ({
-  run, movingSecs, distanceKm,
-}) => {
+const PaceLaps: React.FC<{
+  run: Activity;
+  movingSecs: number;
+  distanceKm: number;
+}> = ({ run, movingSecs, distanceKm }) => {
   const laps = useMemo(() => {
     const path = pathForRun(run);
     if (!path || path.length < 2 || distanceKm < 1) return [];
@@ -114,14 +168,19 @@ const PaceLaps: React.FC<{ run: Activity; movingSecs: number; distanceKm: number
       const dLon = ((b[0] - a[0]) * Math.PI) / 180;
       const lat1 = (a[1] * Math.PI) / 180;
       const lat2 = (b[1] * Math.PI) / 180;
-      const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+      const x =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
       return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
     };
 
     let totalPolylineM = 0;
     const segLengths: number[] = [];
     for (let i = 1; i < path.length; i++) {
-      const d = haversine(path[i-1] as [number,number], path[i] as [number,number]);
+      const d = haversine(
+        path[i - 1] as [number, number],
+        path[i] as [number, number]
+      );
       segLengths.push(d);
       totalPolylineM += d;
     }
@@ -132,7 +191,12 @@ const PaceLaps: React.FC<{ run: Activity; movingSecs: number; distanceKm: number
     if (numLaps < 1) return [];
 
     const secPerMeter = movingSecs / (distanceKm * 1000);
-    const lapResults: { lap: number; paceSec: number; paceStr: string; fastest: boolean }[] = [];
+    const lapResults: {
+      lap: number;
+      paceSec: number;
+      paceStr: string;
+      fastest: boolean;
+    }[] = [];
     let cumDist = 0;
     let lapAccSec = 0;
 
@@ -162,16 +226,18 @@ const PaceLaps: React.FC<{ run: Activity; movingSecs: number; distanceKm: number
 
     if (lapResults.length < 2) return [];
 
-    const fastestIdx = lapResults.reduce((bi, l, i) =>
-      l.paceSec < lapResults[bi].paceSec ? i : bi, 0);
+    const fastestIdx = lapResults.reduce(
+      (bi, l, i) => (l.paceSec < lapResults[bi].paceSec ? i : bi),
+      0
+    );
     lapResults[fastestIdx].fastest = true;
 
     // Also find slowest for bar scaling
-    const slowestSec = Math.max(...lapResults.map(l => l.paceSec));
-    const fastestSec = Math.min(...lapResults.map(l => l.paceSec));
+    const slowestSec = Math.max(...lapResults.map((l) => l.paceSec));
+    const fastestSec = Math.min(...lapResults.map((l) => l.paceSec));
     const range = slowestSec - fastestSec || 1;
 
-    return lapResults.map(l => ({
+    return lapResults.map((l) => ({
       ...l,
       barPct: Math.round(60 + ((l.paceSec - fastestSec) / range) * 40), // 60–100%
     }));
@@ -184,7 +250,10 @@ const PaceLaps: React.FC<{ run: Activity; movingSecs: number; distanceKm: number
       <h4 className={styles.lapsTitle}>Estimated Splits</h4>
       <div className={styles.lapsGrid}>
         {laps.map((lap) => (
-          <div key={lap.lap} className={`${styles.lapItem} ${lap.fastest ? styles.lapFastest : ''}`}>
+          <div
+            key={lap.lap}
+            className={`${styles.lapItem} ${lap.fastest ? styles.lapFastest : ''}`}
+          >
             <span className={styles.lapNum}>km {lap.lap}</span>
             <div className={styles.lapBarWrap}>
               <div
@@ -216,8 +285,12 @@ const RunDetailPanel: React.FC<RunDetailPanelProps> = ({ run }) => {
   const isMarathon = distanceKm >= 42;
 
   const locationParts = run.location_country
-    ? run.location_country.split(',').map(s => s.trim())
-        .filter(s => s.length > 0 && !/^\d/.test(s) && !/[\u4e00-\u9fa5]/.test(s))
+    ? run.location_country
+        .split(',')
+        .map((s) => s.trim())
+        .filter(
+          (s) => s.length > 0 && !/^\d/.test(s) && !/[\u4e00-\u9fa5]/.test(s)
+        )
         .slice(0, 3)
     : [];
   const locationDisplay = locationParts.join(', ');
@@ -227,15 +300,31 @@ const RunDetailPanel: React.FC<RunDetailPanelProps> = ({ run }) => {
       {/* ── Header ── */}
       <div className={styles.panelHeader}>
         <div className={styles.activityMeta}>
-          <span className={styles.activityBadge}>{emoji} {actLabel}</span>
-          {isMarathon && <span className={styles.achievementBadge}>🏅 Marathon</span>}
-          {!isMarathon && isLong && <span className={styles.achievementBadge}>🥈 Half Marathon</span>}
-          {run.streak > 1 && <span className={styles.streakBadge}>🔥 {run.streak}-day streak</span>}
+          <span className={styles.activityBadge}>
+            {emoji} {actLabel}
+          </span>
+          {isMarathon && (
+            <span className={styles.achievementBadge}>🏅 Marathon</span>
+          )}
+          {!isMarathon && isLong && (
+            <span className={styles.achievementBadge}>🥈 Half Marathon</span>
+          )}
+          {run.streak > 1 && (
+            <span className={styles.streakBadge}>
+              🔥 {run.streak}-day streak
+            </span>
+          )}
         </div>
         <div className={styles.dateInfo}>
-          <span className={styles.dateLabel}>{formatDate(run.start_date_local)}</span>
-          <span className={styles.timeLabel}>at {formatTime(run.start_date_local)}</span>
-          {locationDisplay && <span className={styles.locationLabel}>📍 {locationDisplay}</span>}
+          <span className={styles.dateLabel}>
+            {formatDate(run.start_date_local)}
+          </span>
+          <span className={styles.timeLabel}>
+            at {formatTime(run.start_date_local)}
+          </span>
+          {locationDisplay && (
+            <span className={styles.locationLabel}>📍 {locationDisplay}</span>
+          )}
         </div>
       </div>
 
@@ -248,25 +337,50 @@ const RunDetailPanel: React.FC<RunDetailPanelProps> = ({ run }) => {
         <div className={styles.statsSection}>
           {/* Primary big-3 */}
           <div className={styles.primaryStats}>
-            <StatTile label="Distance"    value={distanceKm.toFixed(2)} sub="km"   highlight />
-            <StatTile label="Moving Time" value={formatDuration(movingSecs)}         highlight />
-            <StatTile label="Avg Pace"    value={avgPace}               sub="/ km" highlight />
+            <StatTile
+              label="Distance"
+              value={distanceKm.toFixed(2)}
+              sub="km"
+              highlight
+            />
+            <StatTile
+              label="Moving Time"
+              value={formatDuration(movingSecs)}
+              highlight
+            />
+            <StatTile label="Avg Pace" value={avgPace} sub="/ km" highlight />
           </div>
 
           {/* Secondary */}
           <div className={styles.secondaryStats}>
-            <StatTile label="Avg Speed" value={avgSpeedKmh.toFixed(1)} sub="km/h" />
+            <StatTile
+              label="Avg Speed"
+              value={avgSpeedKmh.toFixed(1)}
+              sub="km/h"
+            />
             {SHOW_ELEVATION_GAIN && run.elevation_gain != null && (
-              <StatTile label="Elevation" value={run.elevation_gain.toFixed(0)} sub="m gain" />
+              <StatTile
+                label="Elevation"
+                value={run.elevation_gain.toFixed(0)}
+                sub="m gain"
+              />
             )}
             {run.average_heartrate && (
-              <StatTile label="Avg Heart Rate" value={run.average_heartrate.toFixed(0)} sub="bpm" />
+              <StatTile
+                label="Avg Heart Rate"
+                value={run.average_heartrate.toFixed(0)}
+                sub="bpm"
+              />
             )}
             {effort !== null && (
               <StatTile label="Relative Effort" value={effort.toString()} />
             )}
             {calories !== null && (
-              <StatTile label="Est. Calories" value={calories.toString()} sub="kcal" />
+              <StatTile
+                label="Est. Calories"
+                value={calories.toString()}
+                sub="kcal"
+              />
             )}
           </div>
         </div>

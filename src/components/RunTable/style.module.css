@@ -112,7 +112,9 @@
   line-height: 1;
   color: var(--color-run-table-thead);
   opacity: 0.45;
-  transition: transform 0.22s ease, opacity 0.22s ease;
+  transition:
+    transform 0.22s ease,
+    opacity 0.22s ease;
   transform: rotate(0deg);
   font-style: normal;
   user-select: none;
