@@ -29,6 +29,28 @@ export type Coordinate = [number, number];
 
 export type RunIds = Array<number> | [];
 
+export interface ActivityLap {
+  lap_index: number;
+  name: string;
+  distance: number;
+  moving_time: number; // seconds
+  elapsed_time: number; // seconds
+  average_speed: number | null; // m/s
+  max_speed: number | null;
+  average_heartrate: number | null;
+  max_heartrate: number | null;
+  total_elevation_gain: number | null;
+  average_cadence: number | null;
+}
+
+export interface ActivityStreams {
+  distance?: number[]; // metres, cumulative
+  altitude?: number[]; // metres
+  heartrate?: number[]; // bpm
+  velocity_smooth?: number[]; // m/s
+  time?: number[]; // seconds from start
+}
+
 export interface Activity {
   run_id: number;
   name: string;
@@ -44,6 +66,8 @@ export interface Activity {
   elevation_gain: number | null;
   average_speed: number;
   streak: number;
+  laps?: ActivityLap[] | null;
+  streams?: ActivityStreams | null;
 }
 
 const titleForShow = (run: Activity): string => {
