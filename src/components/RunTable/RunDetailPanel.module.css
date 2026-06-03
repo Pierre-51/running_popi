@@ -1,4 +1,4 @@
-/* RunDetailPanel — Strava-style expanded activity view */
+/* RunDetailPanel */
 
 .panel {
   background-color: var(--color-activity-card);
@@ -20,7 +20,7 @@
   }
 }
 
-/* === Header === */
+/* header */
 .panelHeader {
   display: flex;
   justify-content: space-between;
@@ -107,7 +107,7 @@
   white-space: nowrap;
 }
 
-/* === Body === */
+/* body: map + stats */
 .panelBody {
   display: flex;
   gap: 20px;
@@ -158,21 +158,19 @@
   gap: 12px;
 }
 
-/* Primary: big 3 */
 .primaryStats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 
-/* Secondary: rest */
 .secondaryStats {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 10px;
 }
 
-/* === Stat tile === */
+/* stat tile */
 .statTile {
   background: var(--color-run-row-hover-background);
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -217,17 +215,8 @@
   font-family: var(--font-mono);
 }
 
-/* === Splits === */
-.paceBreakdown {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.lapsSection {
-}
-
-.lapsTitle {
+/* shared section title */
+.sectionTitle {
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -237,64 +226,98 @@
   margin: 0 0 10px 0;
 }
 
-.lapsGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: flex-end;
+/* laps table */
+.lapsSection {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.lapItem {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  min-width: 52px;
+.lapsTableWrap {
+  overflow-x: auto;
+}
+
+.lapsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.lapsTable thead th {
+  text-align: left;
+  padding: 5px 10px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-run-date);
+  opacity: 0.7;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  white-space: nowrap;
+}
+
+.lapsTable tbody td {
+  padding: 7px 10px;
+  color: var(--color-run-table-thead);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.lapsTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.lapsTable tbody tr:hover td {
+  background: var(--color-run-row-hover-background);
+}
+
+.lapRowFastest td {
+  color: var(--color-primary) !important;
+  background: rgba(224, 237, 94, 0.04);
 }
 
 .lapNum {
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit !important;
+  font-size: 0.78rem !important;
+}
+
+.fastTag {
+  font-size: 0.65rem;
+}
+
+/* charts */
+.chartsSection {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.chartCard {
+  background: var(--color-run-row-hover-background);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 12px 8px 6px 8px;
+}
+
+.chartLabel {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-run-date);
-  opacity: 0.6;
-}
-
-/* Bar chart */
-.lapBarWrap {
-  width: 32px;
-  height: 48px;
-  display: flex;
-  align-items: flex-end;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 4px 4px 0 0;
-  overflow: hidden;
-}
-
-.lapBar {
-  width: 100%;
-  background: rgba(224, 237, 94, 0.35);
-  border-radius: 3px 3px 0 0;
-  transition: height 0.4s ease;
-}
-
-.lapBarFastest {
-  background: var(--color-primary);
-}
-
-.lapPace {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--color-run-table-thead);
-  font-family: var(--font-mono);
-}
-
-.lapFastest .lapPace {
-  color: var(--color-primary);
-}
-
-.lapTag {
-  font-size: 0.6rem;
-  color: var(--color-primary);
+  opacity: 0.7;
+  margin-bottom: 6px;
+  padding-left: 4px;
 }

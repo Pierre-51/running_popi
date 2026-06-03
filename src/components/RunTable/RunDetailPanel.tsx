@@ -1,84 +1,81 @@
 import React, { useMemo } from 'react';
 import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
   Activity,
-  pathForRun,
-  formatPace,
+  ActivityLap,
+  ActivityStreams,
   convertMovingTime2Sec,
+  formatPace,
+  pathForRun,
 } from '@/utils/utils';
 import { SHOW_ELEVATION_GAIN } from '@/utils/const';
 import styles from './RunDetailPanel.module.css';
 
-interface RunDetailPanelProps {
-  run: Activity;
-}
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
-const formatDuration = (seconds: number): string => {
+const fmtDuration = (seconds: number): string => {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
+  const s = Math.round(seconds % 60);
   if (h > 0)
     return `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
   return `${m}m ${s.toString().padStart(2, '0')}s`;
 };
 
-const formatDate = (dateStr: string): string => {
-  const d = new Date(dateStr.replace(' ', 'T'));
-  return d.toLocaleDateString('en-GB', {
+const fmtDate = (d: string) =>
+  new Date(d.replace(' ', 'T')).toLocaleDateString('en-GB', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
-};
 
-const formatTime = (dateStr: string): string => {
-  const d = new Date(dateStr.replace(' ', 'T'));
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-};
+const fmtTime = (d: string) =>
+  new Date(d.replace(' ', 'T')).toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
-const getActivityLabel = (run: Activity): { label: string; emoji: string } => {
+const getLabel = (run: Activity): { label: string; emoji: string } => {
   const t = run.type?.toLowerCase();
-  const st = run.subtype?.toLowerCase();
+  const km = run.distance / 1000;
   if (t === 'run') {
-    if (st === 'trail') return { label: 'Trail Run', emoji: '⛰️' };
-    if (st === 'treadmill') return { label: 'Treadmill', emoji: '🏃' };
-    const km = run.distance / 1000;
     if (km >= 42) return { label: 'Marathon', emoji: '🏅' };
     if (km >= 21) return { label: 'Half Marathon', emoji: '🥈' };
+    if (run.subtype?.toLowerCase() === 'trail')
+      return { label: 'Trail Run', emoji: '⛰️' };
     return { label: 'Run', emoji: '🏃' };
   }
   if (t === 'cycling' || t === 'ride') return { label: 'Ride', emoji: '🚴' };
   if (t === 'hiking') return { label: 'Hike', emoji: '🥾' };
-  if (t === 'walking' || t === 'walk') return { label: 'Walk', emoji: '🚶' };
+  if (t === 'walk' || t === 'walking') return { label: 'Walk', emoji: '🚶' };
   if (t === 'swimming') return { label: 'Swim', emoji: '🏊' };
-  if (t?.includes('ski')) return { label: 'Ski', emoji: '⛷️' };
   return { label: run.type || 'Activity', emoji: '🏅' };
 };
 
-const computeEffort = (run: Activity): number | null => {
-  if (!run.average_heartrate) return null;
-  const secs = convertMovingTime2Sec(run.moving_time);
-  return Math.min(Math.round((run.average_heartrate * secs) / 5000), 999);
-};
+// ─── mini route map ────────────────────────────────────────────────────────────
 
-// ── Mini route map ────────────────────────────────────────────────────────────
 const RouteMiniMap: React.FC<{ run: Activity }> = ({ run }) => {
   const path = useMemo(() => pathForRun(run), [run.run_id]);
-
-  if (!path || path.length < 2) {
+  if (!path || path.length < 2)
     return (
       <div className={styles.noRoute}>
         <span>No GPS data</span>
       </div>
     );
-  }
 
   const lngs = path.map((p) => p[0]);
   const lats = path.map((p) => p[1]);
-  const minLng = Math.min(...lngs),
-    maxLng = Math.max(...lngs);
-  const minLat = Math.min(...lats),
-    maxLat = Math.max(...lats);
+  const [minLng, maxLng] = [Math.min(...lngs), Math.max(...lngs)];
+  const [minLat, maxLat] = [Math.min(...lats), Math.max(...lats)];
   const pad = 0.0005;
   const bw = maxLng - minLng + pad * 2;
   const bh = maxLat - minLat + pad * 2;
@@ -86,7 +83,6 @@ const RouteMiniMap: React.FC<{ run: Activity }> = ({ run }) => {
     H = 200;
   const toX = (lng: number) => ((lng - minLng + pad) / bw) * W;
   const toY = (lat: number) => H - ((lat - minLat + pad) / bh) * H;
-
   const d = path
     .map(
       (p, i) =>
@@ -130,19 +126,14 @@ const RouteMiniMap: React.FC<{ run: Activity }> = ({ run }) => {
   );
 };
 
-// ── Stat tile ─────────────────────────────────────────────────────────────────
-interface StatTileProps {
+// ─── stat tile ─────────────────────────────────────────────────────────────────
+
+const StatTile: React.FC<{
   label: string;
   value: string;
   sub?: string;
   highlight?: boolean;
-}
-const StatTile: React.FC<StatTileProps> = ({
-  label,
-  value,
-  sub,
-  highlight,
-}) => (
+}> = ({ label, value, sub, highlight }) => (
   <div
     className={`${styles.statTile} ${highlight ? styles.statHighlight : ''}`}
   >
@@ -152,161 +143,383 @@ const StatTile: React.FC<StatTileProps> = ({
   </div>
 );
 
-// ── Pace split bars ────────────────────────────────────────────────────────────
-const PaceLaps: React.FC<{
-  run: Activity;
-  movingSecs: number;
-  distanceKm: number;
-}> = ({ run, movingSecs, distanceKm }) => {
-  const laps = useMemo(() => {
-    const path = pathForRun(run);
-    if (!path || path.length < 2 || distanceKm < 1) return [];
+// ─── real laps table ───────────────────────────────────────────────────────────
 
-    const haversine = (a: [number, number], b: [number, number]): number => {
-      const R = 6371000;
-      const dLat = ((b[1] - a[1]) * Math.PI) / 180;
-      const dLon = ((b[0] - a[0]) * Math.PI) / 180;
-      const lat1 = (a[1] * Math.PI) / 180;
-      const lat2 = (b[1] * Math.PI) / 180;
-      const x =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-    };
-
-    let totalPolylineM = 0;
-    const segLengths: number[] = [];
-    for (let i = 1; i < path.length; i++) {
-      const d = haversine(
-        path[i - 1] as [number, number],
-        path[i] as [number, number]
-      );
-      segLengths.push(d);
-      totalPolylineM += d;
-    }
-    if (totalPolylineM === 0) return [];
-
-    const scale = (distanceKm * 1000) / totalPolylineM;
-    const numLaps = Math.floor(distanceKm);
-    if (numLaps < 1) return [];
-
-    const secPerMeter = movingSecs / (distanceKm * 1000);
-    const lapResults: {
-      lap: number;
-      paceSec: number;
-      paceStr: string;
-      fastest: boolean;
-    }[] = [];
-    let cumDist = 0;
-    let lapAccSec = 0;
-
-    for (let i = 0; i < segLengths.length && lapResults.length < numLaps; i++) {
-      const segM = segLengths[i] * scale;
-      const segSec = segM * secPerMeter;
-      const lapEnd = (lapResults.length + 1) * 1000;
-
-      if (cumDist + segM >= lapEnd) {
-        const frac = (lapEnd - cumDist) / segM;
-        const lapSec = lapAccSec + frac * segSec;
-        const pm = Math.floor(lapSec / 60);
-        const ps = Math.round(lapSec % 60);
-        lapResults.push({
-          lap: lapResults.length + 1,
-          paceSec: lapSec,
-          paceStr: `${pm}:${ps.toString().padStart(2, '0')}`,
-          fastest: false,
-        });
-        lapAccSec = (1 - frac) * segSec;
-        cumDist = lapEnd;
-      } else {
-        lapAccSec += segSec;
-        cumDist += segM;
-      }
-    }
-
-    if (lapResults.length < 2) return [];
-
-    const fastestIdx = lapResults.reduce(
-      (bi, l, i) => (l.paceSec < lapResults[bi].paceSec ? i : bi),
-      0
-    );
-    lapResults[fastestIdx].fastest = true;
-
-    // Also find slowest for bar scaling
-    const slowestSec = Math.max(...lapResults.map((l) => l.paceSec));
-    const fastestSec = Math.min(...lapResults.map((l) => l.paceSec));
-    const range = slowestSec - fastestSec || 1;
-
-    return lapResults.map((l) => ({
-      ...l,
-      barPct: Math.round(60 + ((l.paceSec - fastestSec) / range) * 40), // 60–100%
-    }));
-  }, [run.run_id]);
-
-  if (laps.length === 0) return null;
+const LapsTable: React.FC<{ laps: ActivityLap[] }> = ({ laps }) => {
+  const fastestIdx = laps.reduce(
+    (bi, l, i) =>
+      l.average_speed !== null &&
+      (laps[bi].average_speed === null ||
+        l.average_speed > laps[bi].average_speed)
+        ? i
+        : bi,
+    0
+  );
 
   return (
     <div className={styles.lapsSection}>
-      <h4 className={styles.lapsTitle}>Estimated Splits</h4>
-      <div className={styles.lapsGrid}>
-        {laps.map((lap) => (
-          <div
-            key={lap.lap}
-            className={`${styles.lapItem} ${lap.fastest ? styles.lapFastest : ''}`}
-          >
-            <span className={styles.lapNum}>km {lap.lap}</span>
-            <div className={styles.lapBarWrap}>
-              <div
-                className={`${styles.lapBar} ${lap.fastest ? styles.lapBarFastest : ''}`}
-                style={{ height: `${lap.barPct}%` }}
-              />
-            </div>
-            <span className={styles.lapPace}>{lap.paceStr}</span>
-            {lap.fastest && <span className={styles.lapTag}>⚡</span>}
-          </div>
-        ))}
+      <h4 className={styles.sectionTitle}>Splits</h4>
+      <div className={styles.lapsTableWrap}>
+        <table className={styles.lapsTable}>
+          <thead>
+            <tr>
+              <th>Lap</th>
+              <th>Distance</th>
+              <th>Time</th>
+              <th>Pace</th>
+              {laps.some((l) => l.average_heartrate) && <th>Avg HR</th>}
+              {laps.some((l) => l.max_heartrate) && <th>Max HR</th>}
+              {laps.some((l) => l.total_elevation_gain) && <th>Elev</th>}
+              {laps.some((l) => l.average_cadence) && <th>Cadence</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {laps.map((lap, i) => {
+              const pace =
+                lap.average_speed && lap.average_speed > 0
+                  ? formatPace(lap.average_speed)
+                  : '—';
+              const isFastest = i === fastestIdx;
+              return (
+                <tr
+                  key={lap.lap_index}
+                  className={isFastest ? styles.lapRowFastest : ''}
+                >
+                  <td className={styles.lapNum}>
+                    {isFastest && <span className={styles.fastTag}>⚡</span>}
+                    {lap.name || `Lap ${lap.lap_index}`}
+                  </td>
+                  <td>{(lap.distance / 1000).toFixed(2)} km</td>
+                  <td>{fmtDuration(lap.moving_time)}</td>
+                  <td>{pace}</td>
+                  {laps.some((l) => l.average_heartrate) && (
+                    <td>{lap.average_heartrate?.toFixed(0) ?? '—'}</td>
+                  )}
+                  {laps.some((l) => l.max_heartrate) && (
+                    <td>{lap.max_heartrate?.toFixed(0) ?? '—'}</td>
+                  )}
+                  {laps.some((l) => l.total_elevation_gain) && (
+                    <td>
+                      {lap.total_elevation_gain !== null
+                        ? `↑${lap.total_elevation_gain.toFixed(0)}m`
+                        : '—'}
+                    </td>
+                  )}
+                  {laps.some((l) => l.average_cadence) && (
+                    <td>
+                      {lap.average_cadence !== null
+                        ? `${(lap.average_cadence * 2).toFixed(0)} spm`
+                        : '—'}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 };
 
-// ── Main panel ────────────────────────────────────────────────────────────────
-const RunDetailPanel: React.FC<RunDetailPanelProps> = ({ run }) => {
-  const distanceKm = run.distance / 1000;
+// ─── streams charts ────────────────────────────────────────────────────────────
+
+interface ChartPoint {
+  dist: number; // km
+  altitude?: number;
+  heartrate?: number;
+  pace?: number; // sec/km (for display, inverted)
+  paceStr?: string;
+}
+
+// Downsample to at most `maxPts` points to keep charts fast
+const downsample = <T,>(arr: T[], maxPts: number): T[] => {
+  if (arr.length <= maxPts) return arr;
+  const step = arr.length / maxPts;
+  return Array.from({ length: maxPts }, (_, i) => arr[Math.round(i * step)]);
+};
+
+const buildChartData = (streams: ActivityStreams): ChartPoint[] => {
+  const dist = streams.distance;
+  if (!dist || dist.length === 0) return [];
+
+  const raw: ChartPoint[] = dist.map((d, i) => {
+    const alt = streams.altitude?.[i];
+    const hr = streams.heartrate?.[i];
+    const vel = streams.velocity_smooth?.[i]; // m/s
+    let pace: number | undefined;
+    let paceStr: string | undefined;
+    if (vel && vel > 0.5) {
+      const secPerKm = 1000 / vel;
+      pace = secPerKm;
+      const m = Math.floor(secPerKm / 60);
+      const s = Math.round(secPerKm % 60);
+      paceStr = `${m}:${s.toString().padStart(2, '0')}`;
+    }
+    return {
+      dist: Math.round((d / 1000) * 100) / 100,
+      ...(alt !== undefined ? { altitude: Math.round(alt * 10) / 10 } : {}),
+      ...(hr !== undefined ? { heartrate: Math.round(hr) } : {}),
+      ...(pace !== undefined ? { pace, paceStr } : {}),
+    };
+  });
+
+  return downsample(raw, 500);
+};
+
+const CHART_COLORS = {
+  altitude: '#60a5fa',
+  heartrate: '#f87171',
+  pace: '#e0ed5e',
+};
+
+const chartTooltipStyle = {
+  background: 'var(--color-activity-card)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: '6px',
+  fontSize: '0.75rem',
+  color: 'var(--color-run-table-thead)',
+};
+
+const StreamCharts: React.FC<{ streams: ActivityStreams }> = ({ streams }) => {
+  const data = useMemo(() => buildChartData(streams), [streams]);
+  if (data.length === 0) return null;
+
+  const hasAlt = data.some((p) => p.altitude !== undefined);
+  const hasHR = data.some((p) => p.heartrate !== undefined);
+  const hasPace = data.some((p) => p.pace !== undefined);
+
+  if (!hasAlt && !hasHR && !hasPace) return null;
+
+  return (
+    <div className={styles.chartsSection}>
+      <h4 className={styles.sectionTitle}>Activity Charts</h4>
+      <div className={styles.chartsGrid}>
+        {/* Elevation chart */}
+        {hasAlt && (
+          <div className={styles.chartCard}>
+            <span className={styles.chartLabel}>Elevation</span>
+            <ResponsiveContainer width="100%" height={120}>
+              <AreaChart
+                data={data}
+                margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="gradAlt" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor={CHART_COLORS.altitude}
+                      stopOpacity={0.4}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={CHART_COLORS.altitude}
+                      stopOpacity={0.02}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="rgba(255,255,255,0.05)"
+                />
+                <XAxis
+                  dataKey="dist"
+                  tick={{ fontSize: 9, fill: 'var(--color-run-date)' }}
+                  tickFormatter={(v) => `${v}km`}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fontSize: 9, fill: 'var(--color-run-date)' }}
+                  tickFormatter={(v) => `${v}m`}
+                  width={42}
+                />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(v: number) => [`${v}m`, 'Altitude']}
+                  labelFormatter={(v) => `${v} km`}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="altitude"
+                  stroke={CHART_COLORS.altitude}
+                  strokeWidth={1.5}
+                  fill="url(#gradAlt)"
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Heart rate chart */}
+        {hasHR && (
+          <div className={styles.chartCard}>
+            <span className={styles.chartLabel}>Heart Rate</span>
+            <ResponsiveContainer width="100%" height={120}>
+              <AreaChart
+                data={data}
+                margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="gradHR" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor={CHART_COLORS.heartrate}
+                      stopOpacity={0.4}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={CHART_COLORS.heartrate}
+                      stopOpacity={0.02}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="rgba(255,255,255,0.05)"
+                />
+                <XAxis
+                  dataKey="dist"
+                  tick={{ fontSize: 9, fill: 'var(--color-run-date)' }}
+                  tickFormatter={(v) => `${v}km`}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fontSize: 9, fill: 'var(--color-run-date)' }}
+                  tickFormatter={(v) => `${v}`}
+                  width={36}
+                />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(v: number) => [`${v} bpm`, 'Heart Rate']}
+                  labelFormatter={(v) => `${v} km`}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="heartrate"
+                  stroke={CHART_COLORS.heartrate}
+                  strokeWidth={1.5}
+                  fill="url(#gradHR)"
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Pace chart */}
+        {hasPace && (
+          <div className={styles.chartCard}>
+            <span className={styles.chartLabel}>Pace</span>
+            <ResponsiveContainer width="100%" height={120}>
+              <AreaChart
+                data={data}
+                margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="gradPace" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor={CHART_COLORS.pace}
+                      stopOpacity={0.35}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={CHART_COLORS.pace}
+                      stopOpacity={0.02}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="rgba(255,255,255,0.05)"
+                />
+                <XAxis
+                  dataKey="dist"
+                  tick={{ fontSize: 9, fill: 'var(--color-run-date)' }}
+                  tickFormatter={(v) => `${v}km`}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  reversed
+                  tick={{ fontSize: 9, fill: 'var(--color-run-date)' }}
+                  tickFormatter={(v: number) => {
+                    const m = Math.floor(v / 60);
+                    const s = Math.round(v % 60);
+                    return `${m}:${s.toString().padStart(2, '0')}`;
+                  }}
+                  width={42}
+                />
+                <Tooltip
+                  contentStyle={chartTooltipStyle}
+                  formatter={(_v: number, _n: string, item) => {
+                    const pt = (item as { payload?: ChartPoint })?.payload;
+                    return [pt?.paceStr ?? '—', 'Pace'];
+                  }}
+                  labelFormatter={(v) => `${v} km`}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="pace"
+                  stroke={CHART_COLORS.pace}
+                  strokeWidth={1.5}
+                  fill="url(#gradPace)"
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── main panel ────────────────────────────────────────────────────────────────
+
+const RunDetailPanel: React.FC<{ run: Activity }> = ({ run }) => {
+  const distKm = run.distance / 1000;
   const movingSecs = convertMovingTime2Sec(run.moving_time);
   const avgPace = formatPace(run.average_speed);
-  const effort = computeEffort(run);
-  const { label: actLabel, emoji } = getActivityLabel(run);
   const avgSpeedKmh = run.average_speed * 3.6;
+  const { label: actLabel, emoji } = getLabel(run);
+
+  const effort = run.average_heartrate
+    ? Math.min(Math.round((run.average_heartrate * movingSecs) / 5000), 999)
+    : null;
   const calories = run.average_heartrate
     ? Math.round((run.average_heartrate * movingSecs * 0.0175) / 60)
     : null;
-  const isLong = distanceKm >= 21;
-  const isMarathon = distanceKm >= 42;
 
-  const locationParts = run.location_country
-    ? run.location_country
-        .split(',')
-        .map((s) => s.trim())
-        .filter(
-          (s) => s.length > 0 && !/^\d/.test(s) && !/[\u4e00-\u9fa5]/.test(s)
-        )
-        .slice(0, 3)
-    : [];
-  const locationDisplay = locationParts.join(', ');
+  const locationDisplay = (run.location_country ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !/^\d/.test(s) && !/[\u4e00-\u9fa5]/.test(s))
+    .slice(0, 3)
+    .join(', ');
+
+  const hasRealLaps = run.laps && run.laps.length > 0;
+  const hasStreams =
+    run.streams &&
+    (run.streams.altitude?.length ||
+      run.streams.heartrate?.length ||
+      run.streams.velocity_smooth?.length);
 
   return (
     <div className={styles.panel}>
-      {/* ── Header ── */}
+      {/* header */}
       <div className={styles.panelHeader}>
         <div className={styles.activityMeta}>
           <span className={styles.activityBadge}>
             {emoji} {actLabel}
           </span>
-          {isMarathon && (
+          {distKm >= 42 && (
             <span className={styles.achievementBadge}>🏅 Marathon</span>
           )}
-          {!isMarathon && isLong && (
+          {distKm >= 21 && distKm < 42 && (
             <span className={styles.achievementBadge}>🥈 Half Marathon</span>
           )}
           {run.streak > 1 && (
@@ -317,10 +530,10 @@ const RunDetailPanel: React.FC<RunDetailPanelProps> = ({ run }) => {
         </div>
         <div className={styles.dateInfo}>
           <span className={styles.dateLabel}>
-            {formatDate(run.start_date_local)}
+            {fmtDate(run.start_date_local)}
           </span>
           <span className={styles.timeLabel}>
-            at {formatTime(run.start_date_local)}
+            at {fmtTime(run.start_date_local)}
           </span>
           {locationDisplay && (
             <span className={styles.locationLabel}>📍 {locationDisplay}</span>
@@ -328,30 +541,26 @@ const RunDetailPanel: React.FC<RunDetailPanelProps> = ({ run }) => {
         </div>
       </div>
 
-      {/* ── Body: map + stats ── */}
+      {/* map + stats */}
       <div className={styles.panelBody}>
         <div className={styles.mapSection}>
           <RouteMiniMap run={run} />
         </div>
-
         <div className={styles.statsSection}>
-          {/* Primary big-3 */}
           <div className={styles.primaryStats}>
             <StatTile
               label="Distance"
-              value={distanceKm.toFixed(2)}
+              value={distKm.toFixed(2)}
               sub="km"
               highlight
             />
             <StatTile
               label="Moving Time"
-              value={formatDuration(movingSecs)}
+              value={fmtDuration(movingSecs)}
               highlight
             />
             <StatTile label="Avg Pace" value={avgPace} sub="/ km" highlight />
           </div>
-
-          {/* Secondary */}
           <div className={styles.secondaryStats}>
             <StatTile
               label="Avg Speed"
@@ -386,10 +595,11 @@ const RunDetailPanel: React.FC<RunDetailPanelProps> = ({ run }) => {
         </div>
       </div>
 
-      {/* ── Splits ── */}
-      <div className={styles.paceBreakdown}>
-        <PaceLaps run={run} movingSecs={movingSecs} distanceKm={distanceKm} />
-      </div>
+      {/* real splits */}
+      {hasRealLaps && <LapsTable laps={run.laps!} />}
+
+      {/* streams charts */}
+      {hasStreams && <StreamCharts streams={run.streams!} />}
     </div>
   );
 };
