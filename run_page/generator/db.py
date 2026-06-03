@@ -1,4 +1,5 @@
 import datetime
+import json
 import random
 import string
 
@@ -9,6 +10,7 @@ from sqlalchemy import (
     Integer,
     Interval,
     String,
+    Text,
     create_engine,
     inspect,
     text,
@@ -19,14 +21,12 @@ from sqlalchemy.orm import sessionmaker
 Base = declarative_base()
 
 
-# random user name 8 letters
 def randomword():
     letters = string.ascii_lowercase
     return "".join(random.choice(letters) for i in range(4))
 
 
 options.default_user_agent = "running_page"
-# reverse the location (lat, lon) -> location detail
 g = Nominatim(user_agent=randomword())
 
 
@@ -44,6 +44,8 @@ ACTIVITY_KEYS = [
     "average_heartrate",
     "average_speed",
     "elevation_gain",
+    "laps",
+    "streams",
 ]
 
 
@@ -64,6 +66,9 @@ class Activity(Base):
     average_heartrate = Column(Float)
     average_speed = Column(Float)
     elevation_gain = Column(Float)
+    # NEW: real laps and streams stored as JSON strings
+    laps = Column(Text, nullable=True)
+    streams = Column(Text, nullable=True)
     streak = None
 
     def to_dict(self):
@@ -72,6 +77,11 @@ class Activity(Base):
             attr = getattr(self, key)
             if isinstance(attr, (datetime.timedelta, datetime.datetime)):
                 out[key] = str(attr)
+            elif key in ("laps", "streams") and isinstance(attr, str):
+                try:
+                    out[key] = json.loads(attr)
+                except Exception:
+                    out[key] = None
             else:
                 out[key] = attr
 
@@ -88,9 +98,7 @@ def update_or_create_activity(session, run_activity):
             session.query(Activity).filter_by(run_id=int(run_activity.id)).first()
         )
 
-        current_elevation_gain = 0.0  # default value
-
-        # https://github.com/stravalib/stravalib/blob/main/src/stravalib/strava_model.py#L639C1-L643C41
+        current_elevation_gain = 0.0
         if (
             hasattr(run_activity, "total_elevation_gain")
             and run_activity.total_elevation_gain is not None
@@ -105,21 +113,19 @@ def update_or_create_activity(session, run_activity):
         if not activity:
             start_point = run_activity.start_latlng
             location_country = getattr(run_activity, "location_country", "")
-            # or China for #176 to fix
             if not location_country and start_point or location_country == "China":
                 try:
                     location_country = str(
                         g.reverse(
-                            f"{start_point.lat}, {start_point.lon}", language="zh-CN"  # type: ignore
+                            f"{start_point.lat}, {start_point.lon}", language="zh-CN"
                         )
                     )
-                # limit (only for the first time)
                 except Exception:
                     try:
                         location_country = str(
                             g.reverse(
                                 f"{start_point.lat}, {start_point.lon}",
-                                language="zh-CN",  # type: ignore
+                                language="zh-CN",
                             )
                         )
                     except Exception:
@@ -190,12 +196,8 @@ def init_db(db_path):
         f"sqlite:///{db_path}", connect_args={"check_same_thread": False}
     )
     Base.metadata.create_all(engine)
-
-    # check missing columns
     add_missing_columns(engine, Activity)
-
     sm = sessionmaker(bind=engine)
     session = sm()
-    # apply the changes
     session.commit()
     return session
