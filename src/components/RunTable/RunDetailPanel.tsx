@@ -19,7 +19,7 @@ import {
 import { SHOW_ELEVATION_GAIN } from '@/utils/const';
 import styles from './RunDetailPanel.module.css';
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 
 const fmtDuration = (seconds: number): string => {
   const h = Math.floor(seconds / 3600);
@@ -61,7 +61,15 @@ const getLabel = (run: Activity): { label: string; emoji: string } => {
   return { label: run.type || 'Activity', emoji: '🏅' };
 };
 
-// ─── mini route map ────────────────────────────────────────────────────────────
+const chartTooltipStyle = {
+  background: 'var(--color-activity-card)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: '6px',
+  fontSize: '0.75rem',
+  color: 'var(--color-run-table-thead)',
+};
+
+// ── mini route map ─────────────────────────────────────────────────────────────
 
 const RouteMiniMap: React.FC<{ run: Activity }> = ({ run }) => {
   const path = useMemo(() => pathForRun(run), [run.run_id]);
@@ -126,7 +134,7 @@ const RouteMiniMap: React.FC<{ run: Activity }> = ({ run }) => {
   );
 };
 
-// ─── stat tile ─────────────────────────────────────────────────────────────────
+// ── stat tile ──────────────────────────────────────────────────────────────────
 
 const StatTile: React.FC<{
   label: string;
@@ -143,18 +151,23 @@ const StatTile: React.FC<{
   </div>
 );
 
-// ─── real laps table ───────────────────────────────────────────────────────────
+// ── real laps table ────────────────────────────────────────────────────────────
 
-const LapsTable: React.FC<{ laps: ActivityLap[] }> = ({ laps }) => {
+const RealLapsTable: React.FC<{ laps: ActivityLap[] }> = ({ laps }) => {
   const fastestIdx = laps.reduce(
     (bi, l, i) =>
       l.average_speed !== null &&
       (laps[bi].average_speed === null ||
-        l.average_speed > laps[bi].average_speed)
+        l.average_speed! > laps[bi].average_speed!)
         ? i
         : bi,
     0
   );
+
+  const showHR = laps.some((l) => l.average_heartrate);
+  const showMaxHR = laps.some((l) => l.max_heartrate);
+  const showElev = laps.some((l) => l.total_elevation_gain);
+  const showCadence = laps.some((l) => l.average_cadence);
 
   return (
     <div className={styles.lapsSection}>
@@ -167,10 +180,10 @@ const LapsTable: React.FC<{ laps: ActivityLap[] }> = ({ laps }) => {
               <th>Distance</th>
               <th>Time</th>
               <th>Pace</th>
-              {laps.some((l) => l.average_heartrate) && <th>Avg HR</th>}
-              {laps.some((l) => l.max_heartrate) && <th>Max HR</th>}
-              {laps.some((l) => l.total_elevation_gain) && <th>Elev</th>}
-              {laps.some((l) => l.average_cadence) && <th>Cadence</th>}
+              {showHR && <th>Avg HR</th>}
+              {showMaxHR && <th>Max HR</th>}
+              {showElev && <th>Elev</th>}
+              {showCadence && <th>Cadence</th>}
             </tr>
           </thead>
           <tbody>
@@ -192,22 +205,20 @@ const LapsTable: React.FC<{ laps: ActivityLap[] }> = ({ laps }) => {
                   <td>{(lap.distance / 1000).toFixed(2)} km</td>
                   <td>{fmtDuration(lap.moving_time)}</td>
                   <td>{pace}</td>
-                  {laps.some((l) => l.average_heartrate) && (
+                  {showHR && (
                     <td>{lap.average_heartrate?.toFixed(0) ?? '—'}</td>
                   )}
-                  {laps.some((l) => l.max_heartrate) && (
-                    <td>{lap.max_heartrate?.toFixed(0) ?? '—'}</td>
-                  )}
-                  {laps.some((l) => l.total_elevation_gain) && (
+                  {showMaxHR && <td>{lap.max_heartrate?.toFixed(0) ?? '—'}</td>}
+                  {showElev && (
                     <td>
-                      {lap.total_elevation_gain !== null
+                      {lap.total_elevation_gain != null
                         ? `↑${lap.total_elevation_gain.toFixed(0)}m`
                         : '—'}
                     </td>
                   )}
-                  {laps.some((l) => l.average_cadence) && (
+                  {showCadence && (
                     <td>
-                      {lap.average_cadence !== null
+                      {lap.average_cadence != null
                         ? `${(lap.average_cadence * 2).toFixed(0)} spm`
                         : '—'}
                     </td>
@@ -222,17 +233,144 @@ const LapsTable: React.FC<{ laps: ActivityLap[] }> = ({ laps }) => {
   );
 };
 
-// ─── streams charts ────────────────────────────────────────────────────────────
+// ── estimated splits from polyline (fallback) ──────────────────────────────────
+
+interface EstLap {
+  lap: number;
+  paceSec: number;
+  paceStr: string;
+  fastest: boolean;
+  barPct: number;
+}
+
+const useEstimatedLaps = (
+  run: Activity,
+  movingSecs: number,
+  distanceKm: number
+): EstLap[] =>
+  useMemo(() => {
+    const path = pathForRun(run);
+    if (!path || path.length < 2 || distanceKm < 1) return [];
+
+    const haversine = (a: [number, number], b: [number, number]): number => {
+      const R = 6371000;
+      const dLat = ((b[1] - a[1]) * Math.PI) / 180;
+      const dLon = ((b[0] - a[0]) * Math.PI) / 180;
+      const lat1 = (a[1] * Math.PI) / 180;
+      const lat2 = (b[1] * Math.PI) / 180;
+      const x =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    };
+
+    let totalPolyM = 0;
+    const segLengths: number[] = [];
+    for (let i = 1; i < path.length; i++) {
+      const d = haversine(
+        path[i - 1] as [number, number],
+        path[i] as [number, number]
+      );
+      segLengths.push(d);
+      totalPolyM += d;
+    }
+    if (totalPolyM === 0) return [];
+
+    const scale = (distanceKm * 1000) / totalPolyM;
+    const numLaps = Math.floor(distanceKm);
+    if (numLaps < 1) return [];
+
+    const secPerMeter = movingSecs / (distanceKm * 1000);
+    const results: Omit<EstLap, 'fastest' | 'barPct'>[] = [];
+    let cumDist = 0;
+    let lapAccSec = 0;
+
+    for (let i = 0; i < segLengths.length && results.length < numLaps; i++) {
+      const segM = segLengths[i] * scale;
+      const segSec = segM * secPerMeter;
+      const lapEnd = (results.length + 1) * 1000;
+
+      if (cumDist + segM >= lapEnd) {
+        const frac = (lapEnd - cumDist) / segM;
+        const lapSec = lapAccSec + frac * segSec;
+        const pm = Math.floor(lapSec / 60);
+        const ps = Math.round(lapSec % 60);
+        results.push({
+          lap: results.length + 1,
+          paceSec: lapSec,
+          paceStr: `${pm}:${ps.toString().padStart(2, '0')}`,
+        });
+        lapAccSec = (1 - frac) * segSec;
+        cumDist = lapEnd;
+      } else {
+        lapAccSec += segSec;
+        cumDist += segM;
+      }
+    }
+
+    if (results.length < 1) return [];
+
+    const fastestIdx = results.reduce(
+      (bi, l, i) => (l.paceSec < results[bi].paceSec ? i : bi),
+      0
+    );
+    const slowestSec = Math.max(...results.map((l) => l.paceSec));
+    const fastestSec = Math.min(...results.map((l) => l.paceSec));
+    const range = slowestSec - fastestSec || 1;
+
+    return results.map((l, i) => ({
+      ...l,
+      fastest: i === fastestIdx,
+      barPct: Math.round(60 + ((l.paceSec - fastestSec) / range) * 40),
+    }));
+  }, [run.run_id]);
+
+const EstimatedLaps: React.FC<{
+  run: Activity;
+  movingSecs: number;
+  distanceKm: number;
+}> = ({ run, movingSecs, distanceKm }) => {
+  const laps = useEstimatedLaps(run, movingSecs, distanceKm);
+  if (laps.length === 0) return null;
+
+  return (
+    <div className={styles.lapsSection}>
+      <h4 className={styles.sectionTitle}>
+        Estimated Splits{' '}
+        <span className={styles.estimatedNote}>(sync to get real data)</span>
+      </h4>
+      <div className={styles.lapsGrid}>
+        {laps.map((lap) => (
+          <div
+            key={lap.lap}
+            className={`${styles.lapItem} ${lap.fastest ? styles.lapFastest : ''}`}
+          >
+            <span className={styles.lapNum}>km {lap.lap}</span>
+            <div className={styles.lapBarWrap}>
+              <div
+                className={`${styles.lapBar} ${lap.fastest ? styles.lapBarFastest : ''}`}
+                style={{ height: `${lap.barPct}%` }}
+              />
+            </div>
+            <span className={styles.lapPace}>{lap.paceStr}</span>
+            {lap.fastest && <span className={styles.lapTag}>⚡</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── streams charts ─────────────────────────────────────────────────────────────
 
 interface ChartPoint {
-  dist: number; // km
+  dist: number;
   altitude?: number;
   heartrate?: number;
-  pace?: number; // sec/km (for display, inverted)
+  pace?: number;
   paceStr?: string;
 }
 
-// Downsample to at most `maxPts` points to keep charts fast
 const downsample = <T,>(arr: T[], maxPts: number): T[] => {
   if (arr.length <= maxPts) return arr;
   const step = arr.length / maxPts;
@@ -246,7 +384,7 @@ const buildChartData = (streams: ActivityStreams): ChartPoint[] => {
   const raw: ChartPoint[] = dist.map((d, i) => {
     const alt = streams.altitude?.[i];
     const hr = streams.heartrate?.[i];
-    const vel = streams.velocity_smooth?.[i]; // m/s
+    const vel = streams.velocity_smooth?.[i];
     let pace: number | undefined;
     let paceStr: string | undefined;
     if (vel && vel > 0.5) {
@@ -273,14 +411,6 @@ const CHART_COLORS = {
   pace: '#e0ed5e',
 };
 
-const chartTooltipStyle = {
-  background: 'var(--color-activity-card)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: '6px',
-  fontSize: '0.75rem',
-  color: 'var(--color-run-table-thead)',
-};
-
 const StreamCharts: React.FC<{ streams: ActivityStreams }> = ({ streams }) => {
   const data = useMemo(() => buildChartData(streams), [streams]);
   if (data.length === 0) return null;
@@ -288,14 +418,12 @@ const StreamCharts: React.FC<{ streams: ActivityStreams }> = ({ streams }) => {
   const hasAlt = data.some((p) => p.altitude !== undefined);
   const hasHR = data.some((p) => p.heartrate !== undefined);
   const hasPace = data.some((p) => p.pace !== undefined);
-
   if (!hasAlt && !hasHR && !hasPace) return null;
 
   return (
     <div className={styles.chartsSection}>
       <h4 className={styles.sectionTitle}>Activity Charts</h4>
       <div className={styles.chartsGrid}>
-        {/* Elevation chart */}
         {hasAlt && (
           <div className={styles.chartCard}>
             <span className={styles.chartLabel}>Elevation</span>
@@ -352,7 +480,6 @@ const StreamCharts: React.FC<{ streams: ActivityStreams }> = ({ streams }) => {
           </div>
         )}
 
-        {/* Heart rate chart */}
         {hasHR && (
           <div className={styles.chartCard}>
             <span className={styles.chartLabel}>Heart Rate</span>
@@ -387,7 +514,6 @@ const StreamCharts: React.FC<{ streams: ActivityStreams }> = ({ streams }) => {
                 />
                 <YAxis
                   tick={{ fontSize: 9, fill: 'var(--color-run-date)' }}
-                  tickFormatter={(v) => `${v}`}
                   width={36}
                 />
                 <Tooltip
@@ -409,7 +535,6 @@ const StreamCharts: React.FC<{ streams: ActivityStreams }> = ({ streams }) => {
           </div>
         )}
 
-        {/* Pace chart */}
         {hasPace && (
           <div className={styles.chartCard}>
             <span className={styles.chartLabel}>Pace</span>
@@ -478,7 +603,7 @@ const StreamCharts: React.FC<{ streams: ActivityStreams }> = ({ streams }) => {
   );
 };
 
-// ─── main panel ────────────────────────────────────────────────────────────────
+// ── main panel ─────────────────────────────────────────────────────────────────
 
 const RunDetailPanel: React.FC<{ run: Activity }> = ({ run }) => {
   const distKm = run.distance / 1000;
@@ -595,10 +720,14 @@ const RunDetailPanel: React.FC<{ run: Activity }> = ({ run }) => {
         </div>
       </div>
 
-      {/* real splits */}
-      {hasRealLaps && <LapsTable laps={run.laps!} />}
+      {/* real laps if synced, otherwise estimated from polyline */}
+      {hasRealLaps ? (
+        <RealLapsTable laps={run.laps!} />
+      ) : (
+        <EstimatedLaps run={run} movingSecs={movingSecs} distanceKm={distKm} />
+      )}
 
-      {/* streams charts */}
+      {/* streams charts — shown once real data is synced */}
       {hasStreams && <StreamCharts streams={run.streams!} />}
     </div>
   );

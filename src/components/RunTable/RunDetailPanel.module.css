@@ -321,3 +321,64 @@
   margin-bottom: 6px;
   padding-left: 4px;
 }
+
+/* estimated splits bar chart */
+.lapsGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.lapItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 52px;
+}
+
+.lapFastest .lapPace {
+  color: var(--color-primary);
+}
+
+.lapBarWrap {
+  width: 32px;
+  height: 48px;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+}
+
+.lapBar {
+  width: 100%;
+  background: rgba(224, 237, 94, 0.35);
+  border-radius: 3px 3px 0 0;
+}
+
+.lapBarFastest {
+  background: var(--color-primary);
+}
+
+.lapPace {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-run-table-thead);
+  font-family: var(--font-mono);
+}
+
+.lapTag {
+  font-size: 0.6rem;
+  color: var(--color-primary);
+}
+
+.estimatedNote {
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: var(--color-run-date);
+  opacity: 0.5;
+  text-transform: none;
+  letter-spacing: 0;
+}
