@@ -1,8 +1,27 @@
 import argparse
 import json
+import os
 
 from config import JSON_FILE, SQL_FILE
 from generator import Generator
+from generator.db import Activity
+
+DETAILS_DIR = os.path.join(os.path.dirname(JSON_FILE), "activities")
+
+
+def write_detail_files(session, details_dir):
+    """Write one JSON file per activity containing laps + streams."""
+    os.makedirs(details_dir, exist_ok=True)
+    activities = session.query(Activity).all()
+    written = 0
+    for act in activities:
+        detail = act.to_detail_dict()
+        if detail["laps"] is not None or detail["streams"] is not None:
+            path = os.path.join(details_dir, f"{act.run_id}.json")
+            with open(path, "w") as f:
+                json.dump(detail, f)
+            written += 1
+    print(f"Wrote {written} detail files to {details_dir}")
 
 
 # for only run type, we use the same logic as garmin_sync
@@ -25,6 +44,10 @@ def run_strava_sync(
     activities_list = generator.load()
     with open(JSON_FILE, "w") as f:
         json.dump(activities_list, f)
+
+    # Write per-activity detail files (laps + streams) — kept separate to
+    # avoid bloating activities.json and breaking the Raycast extension.
+    write_detail_files(generator.session, DETAILS_DIR)
 
 
 if __name__ == "__main__":

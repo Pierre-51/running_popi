@@ -1,17 +1,16 @@
 """
 One-time backfill script: fetches laps + streams for all activities
-that don't have them yet and updates data.db + activities.json.
+that don't have them yet, updates data.db, writes per-activity detail
+files to src/static/activities/, and regenerates activities.json
+(which no longer contains laps/streams).
 
 Usage:
     python run_page/backfill_streams.py CLIENT_ID CLIENT_SECRET REFRESH_TOKEN
-
-Run this once from your repo root after deploying the new db.py / generator.
-The updated data.db and activities.json will then be committed by the next sync,
-or you can commit them manually.
 """
 
 import argparse
 import json
+import os
 import sys
 import time
 
@@ -21,16 +20,16 @@ from config import JSON_FILE, SQL_FILE
 from generator import Generator
 from generator.db import Activity, init_db
 
+DETAILS_DIR = os.path.join(os.path.dirname(JSON_FILE), "activities")
+
 
 def backfill(client_id: str, client_secret: str, refresh_token: str):
-    # Init DB (adds missing columns automatically)
     session = init_db(SQL_FILE)
 
     gen = Generator(SQL_FILE)
     gen.set_strava_config(client_id, client_secret, refresh_token)
     gen.check_access()
 
-    # Find all activities with null laps or streams
     activities = (
         session.query(Activity)
         .filter((Activity.laps == None) | (Activity.streams == None))  # noqa: E711
@@ -40,52 +39,65 @@ def backfill(client_id: str, client_secret: str, refresh_token: str):
 
     print(f"Found {len(activities)} activities needing backfill")
     if not activities:
-        print("Nothing to do.")
-        return
+        print("Nothing to do — writing detail files and regenerating JSON.")
+    else:
+        success = 0
+        failed = 0
 
-    success = 0
-    failed = 0
+        for i, act in enumerate(activities):
+            print(f"[{i+1}/{len(activities)}] {act.run_id} — {act.name} ... ", end="")
+            try:
+                if act.laps is None:
+                    laps = gen._fetch_laps(act.run_id)
+                    if laps is not None:
+                        act.laps = json.dumps(laps)
 
-    for i, act in enumerate(activities):
-        print(f"[{i+1}/{len(activities)}] {act.run_id} — {act.name} ... ", end="")
+                if act.streams is None:
+                    streams = gen._fetch_streams(act.run_id)
+                    if streams is not None:
+                        act.streams = json.dumps(streams)
 
-        try:
-            if act.laps is None:
-                laps = gen._fetch_laps(act.run_id)
-                if laps is not None:
-                    act.laps = json.dumps(laps)
+                session.commit()
+                print("✓")
+                success += 1
 
-            if act.streams is None:
-                streams = gen._fetch_streams(act.run_id)
-                if streams is not None:
-                    act.streams = json.dumps(streams)
+                if i < len(activities) - 1:
+                    time.sleep(10)
 
-            session.commit()
-            print("✓")
-            success += 1
+            except Exception as e:
+                print(f"✗ {e}")
+                failed += 1
+                session.rollback()
+                time.sleep(15)
 
-            # Respect Strava rate limit: 100 req / 15 min = ~1 req/9s
-            # laps + streams = 2 requests per activity → sleep 10s every activity
-            # For the daily limit (1000/day), 258 activities = 516 requests — fine.
-            if i < len(activities) - 1:
-                time.sleep(10)
+        print(f"\nDone. {success} updated, {failed} failed.")
 
-        except Exception as e:
-            print(f"✗ {e}")
-            failed += 1
-            session.rollback()
-            time.sleep(15)  # back off on error
-
-    print(f"\nDone. {success} updated, {failed} failed.")
-
-    # Regenerate activities.json
-    print("Regenerating activities.json ...")
+    # Write per-activity detail files
+    print("Writing per-activity detail files...")
+    os.makedirs(DETAILS_DIR, exist_ok=True)
     all_acts = session.query(Activity).all()
+    written = 0
+    for act in all_acts:
+        detail = act.to_detail_dict()
+        if detail["laps"] is not None or detail["streams"] is not None:
+            path = os.path.join(DETAILS_DIR, f"{act.run_id}.json")
+            with open(path, "w") as f:
+                json.dump(detail, f)
+            written += 1
+    print(f"Wrote {written} detail files to {DETAILS_DIR}/")
+
+    # Regenerate slim activities.json (no laps/streams)
+    print("Regenerating activities.json (slim, no laps/streams)...")
     data = [a.to_dict() for a in all_acts]
     with open(JSON_FILE, "w") as f:
         json.dump(data, f)
-    print(f"Wrote {len(data)} activities to {JSON_FILE}")
-    print("\nCommit data.db and src/static/activities.json to apply changes.")
+    import os as _os
+
+    size_kb = _os.path.getsize(JSON_FILE) / 1024
+    print(f"Wrote {len(data)} activities to {JSON_FILE} ({size_kb:.0f} KB)")
+    print(
+        "\nCommit data.db, src/static/activities.json, and src/static/activities/ to apply."
+    )
 
 
 if __name__ == "__main__":

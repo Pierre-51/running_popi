@@ -30,6 +30,8 @@ options.default_user_agent = "running_page"
 g = Nominatim(user_agent=randomword())
 
 
+# Keys exported to activities.json — laps/streams are NOT included here.
+# They are written as separate per-activity JSON files by the generator.
 ACTIVITY_KEYS = [
     "run_id",
     "name",
@@ -44,8 +46,6 @@ ACTIVITY_KEYS = [
     "average_heartrate",
     "average_speed",
     "elevation_gain",
-    "laps",
-    "streams",
 ]
 
 
@@ -66,7 +66,7 @@ class Activity(Base):
     average_heartrate = Column(Float)
     average_speed = Column(Float)
     elevation_gain = Column(Float)
-    # NEW: real laps and streams stored as JSON strings
+    # Stored in DB only — exported as individual files, not in activities.json
     laps = Column(Text, nullable=True)
     streams = Column(Text, nullable=True)
     streak = None
@@ -77,11 +77,6 @@ class Activity(Base):
             attr = getattr(self, key)
             if isinstance(attr, (datetime.timedelta, datetime.datetime)):
                 out[key] = str(attr)
-            elif key in ("laps", "streams") and isinstance(attr, str):
-                try:
-                    out[key] = json.loads(attr)
-                except Exception:
-                    out[key] = None
             else:
                 out[key] = attr
 
@@ -89,6 +84,22 @@ class Activity(Base):
             out["streak"] = self.streak
 
         return out
+
+    def to_detail_dict(self):
+        """Return laps + streams for writing to a per-activity detail file."""
+        laps = None
+        streams = None
+        if self.laps:
+            try:
+                laps = json.loads(self.laps)
+            except Exception:
+                pass
+        if self.streams:
+            try:
+                streams = json.loads(self.streams)
+            except Exception:
+                pass
+        return {"run_id": self.run_id, "laps": laps, "streams": streams}
 
 
 def update_or_create_activity(session, run_activity):
