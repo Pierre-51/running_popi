@@ -14,7 +14,6 @@ from .db import Activity, init_db, update_or_create_activity
 
 from synced_data_file_logger import save_synced_data_file_list
 
-
 IGNORE_BEFORE_SAVING = os.getenv("IGNORE_BEFORE_SAVING", False)
 
 # Stream types to fetch per activity (altitude + HR + pace + distance)
@@ -97,9 +96,7 @@ class Generator:
     def _fetch_streams(self, activity_id):
         """Fetch altitude/HR/pace streams and return as a JSON-serialisable dict."""
         try:
-            streams = self.client.get_activity_streams(
-                activity_id, types=STREAM_TYPES
-            )
+            streams = self.client.get_activity_streams(activity_id, types=STREAM_TYPES)
             out = {}
             for key, stream in streams.items():
                 out[str(key)] = stream.data
@@ -135,22 +132,23 @@ class Generator:
             activity.subtype = activity.type
             created = update_or_create_activity(self.session, activity)
 
-            # Fetch and store laps + streams for new activities
-            if created:
-                db_activity = (
-                    self.session.query(Activity)
-                    .filter_by(run_id=int(activity.id))
-                    .first()
-                )
-                if db_activity:
+            # Fetch and store laps + streams for new OR not-yet-enriched activities
+            db_activity = (
+                self.session.query(Activity).filter_by(run_id=int(activity.id)).first()
+            )
+            if db_activity and (
+                db_activity.laps is None or db_activity.streams is None
+            ):
+                if db_activity.laps is None:
                     laps = self._fetch_laps(int(activity.id))
                     if laps is not None:
                         db_activity.laps = json.dumps(laps)
-
+                if db_activity.streams is None:
                     streams = self._fetch_streams(int(activity.id))
                     if streams is not None:
                         db_activity.streams = json.dumps(streams)
 
+            if created:
                 sys.stdout.write("+")
             else:
                 sys.stdout.write(".")
