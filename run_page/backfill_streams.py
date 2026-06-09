@@ -33,7 +33,7 @@ def backfill(client_id: str, client_secret: str, refresh_token: str):
     # Find all activities with null laps or streams
     activities = (
         session.query(Activity)
-        .filter((Activity.laps == None) | (Activity.streams == None))
+        .filter((Activity.laps == None) | (Activity.streams == None))  # noqa: E711
         .order_by(Activity.run_id.desc())
         .all()
     )
