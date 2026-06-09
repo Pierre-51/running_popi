@@ -51,6 +51,12 @@ export interface ActivityStreams {
   time?: number[]; // seconds from start
 }
 
+export interface ActivityDetail {
+  run_id: number;
+  laps?: ActivityLap[] | null;
+  streams?: ActivityStreams | null;
+}
+
 export interface Activity {
   run_id: number;
   name: string;
@@ -66,8 +72,6 @@ export interface Activity {
   elevation_gain: number | null;
   average_speed: number;
   streak: number;
-  laps?: ActivityLap[] | null;
-  streams?: ActivityStreams | null;
 }
 
 const titleForShow = (run: Activity): string => {

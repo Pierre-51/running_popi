@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import {
   Activity,
+  ActivityDetail,
   ActivityLap,
   ActivityStreams,
   convertMovingTime2Sec,
@@ -603,9 +604,25 @@ const StreamCharts: React.FC<{ streams: ActivityStreams }> = ({ streams }) => {
   );
 };
 
+// ── lazy detail fetch ──────────────────────────────────────────────────────────
+
+const useActivityDetail = (runId: number): ActivityDetail | null => {
+  const [detail, setDetail] = useState<ActivityDetail | null>(null);
+  useEffect(() => {
+    setDetail(null);
+    const base = import.meta.env.BASE_URL ?? '/';
+    fetch(`${base}static/activities/${runId}.json`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setDetail(d ?? null))
+      .catch(() => setDetail(null));
+  }, [runId]);
+  return detail;
+};
+
 // ── main panel ─────────────────────────────────────────────────────────────────
 
 const RunDetailPanel: React.FC<{ run: Activity }> = ({ run }) => {
+  const detail = useActivityDetail(run.run_id);
   const distKm = run.distance / 1000;
   const movingSecs = convertMovingTime2Sec(run.moving_time);
   const avgPace = formatPace(run.average_speed);
@@ -626,12 +643,12 @@ const RunDetailPanel: React.FC<{ run: Activity }> = ({ run }) => {
     .slice(0, 3)
     .join(', ');
 
-  const hasRealLaps = run.laps && run.laps.length > 0;
+  const hasRealLaps = detail?.laps && detail.laps.length > 0;
   const hasStreams =
-    run.streams &&
-    (run.streams.altitude?.length ||
-      run.streams.heartrate?.length ||
-      run.streams.velocity_smooth?.length);
+    detail?.streams &&
+    (detail.streams.altitude?.length ||
+      detail.streams.heartrate?.length ||
+      detail.streams.velocity_smooth?.length);
 
   return (
     <div className={styles.panel}>
@@ -722,13 +739,13 @@ const RunDetailPanel: React.FC<{ run: Activity }> = ({ run }) => {
 
       {/* real laps if synced, otherwise estimated from polyline */}
       {hasRealLaps ? (
-        <RealLapsTable laps={run.laps!} />
+        <RealLapsTable laps={detail!.laps!} />
       ) : (
         <EstimatedLaps run={run} movingSecs={movingSecs} distanceKm={distKm} />
       )}
 
       {/* streams charts — shown once real data is synced */}
-      {hasStreams && <StreamCharts streams={run.streams!} />}
+      {hasStreams && <StreamCharts streams={detail!.streams!} />}
     </div>
   );
 };
